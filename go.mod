@@ -1,4 +1,4 @@
-module jsonhttp.imchuncai.com
+module github.com/imchuncai/jsonhttp
 
 go 1.15
 
