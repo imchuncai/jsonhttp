@@ -56,37 +56,49 @@ func HandleOrigin(partten string, handler http.Handler) {
 	http.Handle(partten, handler)
 }
 
+type commonRequest struct {
+	R  *http.Request
+	W  http.ResponseWriter
+	IP string
+}
+
+func getCommonRequest(w http.ResponseWriter, r *http.Request) commonRequest {
+	var req = commonRequest{r, w, ""}
+	if r.RemoteAddr != "" {
+		req.IP = strings.Split(r.RemoteAddr, ":")[0]
+	}
+	return req
+}
+
 // Request http post json request struct
 type Request struct {
-	IP        string
+	commonRequest
 	Unmarshal func(v interface{})
 }
 
 func getRequest(w http.ResponseWriter, r *http.Request) Request {
 	var data, err = ioutil.ReadAll(r.Body)
 	CheckError(err)
-	var req Request
-	if r.RemoteAddr != "" {
-		req.IP = strings.Split(r.RemoteAddr, ":")[0]
-	}
-	req.Unmarshal = func(v interface{}) {
+	var unmarshal = func(v interface{}) {
 		CheckErrorWithCode(json.Unmarshal(data, v), http.StatusBadRequest)
 	}
-	return req
+	return Request{getCommonRequest(w, r), unmarshal}
 }
 
 // RequestForm http post form request struct
 type RequestForm struct {
+	commonRequest
 	Data *multipart.Form
 }
 
 func getRequestForm(w http.ResponseWriter, r *http.Request) RequestForm {
 	CheckError(r.ParseMultipartForm(defaultMaxMemory))
-	return RequestForm{r.MultipartForm}
+	return RequestForm{getCommonRequest(w, r), r.MultipartForm}
 }
 
 // RequestGet http get request struct
 type RequestGet struct {
+	commonRequest
 	Unmarshal func(v interface{}) error
 }
 
@@ -94,7 +106,7 @@ func getRequestGet(w http.ResponseWriter, r *http.Request) RequestGet {
 	var unmarshal = func(v interface{}) error {
 		return params.Unpack(r, v)
 	}
-	return RequestGet{unmarshal}
+	return RequestGet{getCommonRequest(w, r), unmarshal}
 }
 
 // Response json response struct
