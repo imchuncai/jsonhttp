@@ -109,7 +109,7 @@ func (res Response) do(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	resJSONByte, err := json.Marshal(res)
 	LogError(err)
-	_, err = fmt.Fprint(w, resJSONByte)
+	_, err = fmt.Fprint(w, string(resJSONByte))
 	LogError(err)
 }
 
@@ -132,6 +132,7 @@ type handler interface {
 
 func handle(h handler) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		defer doRecover(w)
 		var req = h.getRequest(w, r)
 		for try := maxTry; try > 0; try-- {
 			if !serve(h, req, w, r) {
@@ -247,9 +248,7 @@ func Success(data interface{}) Response {
 
 // EchoSuccess response success message for debug
 func Echo(req Request) Response {
-	var reqData struct {
-		Res interface{} `json:"res"`
-	}
+	var reqData interface{}
 	req.Unmarshal(&reqData)
-	return Success(reqData.Res)
+	return Success(reqData)
 }
