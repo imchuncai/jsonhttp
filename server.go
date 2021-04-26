@@ -15,17 +15,17 @@ import (
 	"gopl.io/ch12/params"
 )
 
-var maxTry int
+var _maxTry int
 
 const defaultMaxMemory = 32 << 20 // 32 MB
 
-func Listen(address string, try int) {
-	if try <= 0 {
-		LogErrorAndPanic(fmt.Errorf("listen %s failed, try must be positive", address))
-	} else {
-		maxTry = try
-		http.ListenAndServe(address, nil)
+func Listen(address string, maxTry int, logger LoggerInterface) {
+	if maxTry <= 0 {
+		panic(fmt.Errorf("listen %s failed, maxTry must be positive", address))
 	}
+	_maxTry = maxTry
+	_logger = logger
+	http.ListenAndServe(address, nil)
 }
 
 func Handle(partten string, handler func(req Request) Response) {
@@ -78,9 +78,9 @@ type Request struct {
 
 func getRequest(w http.ResponseWriter, r *http.Request) Request {
 	var data, err = ioutil.ReadAll(r.Body)
-	CheckError(err)
+	Must(err)
 	var unmarshal = func(v interface{}) {
-		CheckErrorWithCode(json.Unmarshal(data, v), http.StatusBadRequest)
+		MustWithCode(json.Unmarshal(data, v), http.StatusBadRequest)
 	}
 	return Request{getCommonRequest(w, r), unmarshal}
 }
@@ -92,7 +92,7 @@ type RequestForm struct {
 }
 
 func getRequestForm(w http.ResponseWriter, r *http.Request) RequestForm {
-	CheckError(r.ParseMultipartForm(defaultMaxMemory))
+	Must(r.ParseMultipartForm(defaultMaxMemory))
 	return RequestForm{getCommonRequest(w, r), r.MultipartForm}
 }
 
@@ -120,9 +120,11 @@ type Response struct {
 func (res Response) do(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	resJSONByte, err := json.Marshal(res)
-	LogError(err)
+	if err != nil {
+		Log(Error, err)
+	}
 	_, err = fmt.Fprint(w, string(resJSONByte))
-	LogError(err)
+	Log(Error, err)
 }
 
 // ResponseFile file response struct
@@ -146,7 +148,7 @@ func handle(h handler) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer doRecover(w)
 		var req = h.getRequest(w, r)
-		for try := maxTry; try > 0; try-- {
+		for try := _maxTry; try > 0; try-- {
 			if !serve(h, req, w, r) {
 				return
 			}
@@ -163,23 +165,22 @@ func serve(h handler, req interface{}, w http.ResponseWriter, r *http.Request) (
 
 // service recover from panic
 func doRecover(w http.ResponseWriter) (retry bool) {
-	var r = recover()
-	if r == nil {
-		return false
-	}
-	if err, ok := r.(*pq.Error); ok && (err.Code == "40001" || err.Code == "55P03") {
-		Log(Error, err.Error()+"\n"+string(debug.Stack()))
-		return true
-	}
-	var originError error
-	if err, ok := r.(ErrorWithCode); ok {
-		w.WriteHeader(err.HTTPResponseStatusCode)
-		originError = err.OriginError
-	} else {
+	switch err := recover().(type) {
+	case nil:
+	case *pq.Error:
+		if err.Code == "40001" || err.Code == "55P03" {
+			Log(Warn, err, string(debug.Stack()))
+			return true
+		}
 		w.WriteHeader(http.StatusInternalServerError)
-		originError = fmt.Errorf("%v", r)
+		Log(Error, err, string(debug.Stack()))
+	case ErrorWithCode:
+		w.WriteHeader(err.HTTPResponseStatusCode)
+		Log(Warn, err, string(debug.Stack()))
+	default:
+		w.WriteHeader(http.StatusInternalServerError)
+		Log(Error, err, string(debug.Stack()))
 	}
-	Log(Error, originError.Error()+"\n"+string(debug.Stack()))
 	return false
 }
 
