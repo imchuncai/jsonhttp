@@ -124,7 +124,9 @@ func (res Response) do(w http.ResponseWriter) {
 		Log(Error, err)
 	}
 	_, err = fmt.Fprint(w, string(resJSONByte))
-	Log(Error, err)
+	if err != nil {
+		Log(Error, err)
+	}
 }
 
 // ResponseFile file response struct
