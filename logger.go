@@ -5,9 +5,9 @@ import (
 	"net/http"
 )
 
-var _logger LoggerInterface
+var _logger Logger
 
-type LoggerInterface interface {
+type Logger interface {
 	Log(prefix Prefix, v ...interface{})
 }
 

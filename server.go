@@ -19,7 +19,7 @@ var _maxTry int
 
 const defaultMaxMemory = 32 << 20 // 32 MB
 
-func Listen(address string, maxTry int, logger LoggerInterface) {
+func Listen(address string, maxTry int, logger Logger) {
 	if maxTry <= 0 {
 		panic(fmt.Errorf("listen %s failed, maxTry must be positive", address))
 	}

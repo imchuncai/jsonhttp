@@ -13,7 +13,7 @@ type fileLogger struct {
 	path           string
 }
 
-func FileLogger(path string) *fileLogger {
+func FileLogger(path string) Logger {
 	makeDir(path)
 	var now = time.Now()
 	var f, err = newLogFile(path, now)
