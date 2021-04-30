@@ -25,7 +25,7 @@ func Listen(address string, maxTry int, logger Logger) {
 	}
 	_maxTry = maxTry
 	_logger = logger
-	http.ListenAndServe(address, nil)
+	Must(http.ListenAndServe(address, nil))
 }
 
 func Handle(partten string, handler func(req Request) Response) {
