@@ -7,8 +7,11 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
+	"os"
+	"os/signal"
 	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/lib/pq"
@@ -21,10 +24,18 @@ const defaultMaxMemory = 32 << 20 // 32 MB
 
 func Listen(address string, maxTry int, logger Logger) {
 	if maxTry <= 0 {
-		panic(fmt.Errorf("listen %s failed, maxTry must be positive", address))
+		panic(fmt.Errorf("jsonhttp: listen %s failed, maxTry must be positive", address))
 	}
 	_maxTry = maxTry
 	_logger = logger
+
+	c := make(chan os.Signal)
+	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func() {
+		logger.Log(Info, (<-c).String())
+		os.Exit(5)
+	}()
+	logger.Log(Info, "jsonhttp: start listen "+address)
 	Must(http.ListenAndServe(address, nil))
 }
 
@@ -56,23 +67,42 @@ func HandleOrigin(partten string, handler http.Handler) {
 	http.Handle(partten, handler)
 }
 
-type commonRequest struct {
-	R  *http.Request
-	W  http.ResponseWriter
-	IP string
+type CommonRequestInterface interface {
+	Req() *http.Request
+	Res() http.ResponseWriter
+	IP() string
 }
 
-func getCommonRequest(w http.ResponseWriter, r *http.Request) commonRequest {
-	var req = commonRequest{r, w, ""}
+type CommonRequest struct {
+	r  *http.Request
+	w  http.ResponseWriter
+	ip string
+}
+
+func (r CommonRequest) Req() *http.Request {
+	return r.r
+}
+
+func (r CommonRequest) Res() http.ResponseWriter {
+	return r.w
+}
+
+func (r CommonRequest) IP() string {
+	return r.ip
+}
+
+func getCommonRequest(w http.ResponseWriter, r *http.Request) CommonRequest {
+	var req = CommonRequest{r, w, ""}
 	if r.RemoteAddr != "" {
-		req.IP = strings.Split(r.RemoteAddr, ":")[0]
+		req.ip = strings.Split(r.RemoteAddr, ":")[0]
 	}
 	return req
 }
 
 // Request http post json request struct
 type Request struct {
-	commonRequest
+	CommonRequest
+	Data      []byte
 	Unmarshal func(v interface{})
 }
 
@@ -82,12 +112,12 @@ func getRequest(w http.ResponseWriter, r *http.Request) Request {
 	var unmarshal = func(v interface{}) {
 		MustWithCode(json.Unmarshal(data, v), http.StatusBadRequest)
 	}
-	return Request{getCommonRequest(w, r), unmarshal}
+	return Request{getCommonRequest(w, r), data, unmarshal}
 }
 
 // RequestForm http post form request struct
 type RequestForm struct {
-	commonRequest
+	CommonRequest
 	Data *multipart.Form
 }
 
@@ -98,7 +128,8 @@ func getRequestForm(w http.ResponseWriter, r *http.Request) RequestForm {
 
 // RequestGet http get request struct
 type RequestGet struct {
-	commonRequest
+	CommonRequest
+	RawQuery  string
 	Unmarshal func(v interface{}) error
 }
 
@@ -106,7 +137,7 @@ func getRequestGet(w http.ResponseWriter, r *http.Request) RequestGet {
 	var unmarshal = func(v interface{}) error {
 		return params.Unpack(r, v)
 	}
-	return RequestGet{getCommonRequest(w, r), unmarshal}
+	return RequestGet{getCommonRequest(w, r), r.URL.RawQuery, unmarshal}
 }
 
 // Response json response struct
@@ -155,7 +186,7 @@ func handle(h handler) func(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		fmt.Fprint(w, `{"ok":false,"msg":"服务正忙！请稍后重试！"}`)
+		fmt.Fprint(w, `{"ok":false,"msg":"Server is busy, please try later!"}`)
 	}
 }
 
@@ -254,6 +285,10 @@ type FailCode interface {
 // Fail generate fail response
 func Fail(code FailCode) Response {
 	return Response{Success: false, Msg: code.Message(), Code: code.Int()}
+}
+
+func FailWithMsg(code FailCode, msg string) Response {
+	return Response{Success: false, Msg: msg, Code: code.Int()}
 }
 
 // Success generate success response
