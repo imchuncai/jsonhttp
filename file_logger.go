@@ -1,7 +1,6 @@
 package jsonhttp
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
