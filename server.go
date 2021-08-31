@@ -22,6 +22,7 @@ var _maxTry int
 
 const defaultMaxMemory = 32 << 20 // 32 MB
 
+// maxTry is only use for postgres
 func Listen(address string, maxTry int, logger Logger) {
 	if maxTry <= 0 {
 		panic(fmt.Errorf("jsonhttp: listen %s failed, maxTry must be positive", address))

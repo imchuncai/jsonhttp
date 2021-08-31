@@ -1,6 +1,7 @@
 package jsonhttp
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ func (l *fileLogger) changeLogFile() {
 	}
 	l.fileChangeTime = nextDayZero(now)
 	var f, err = newLogFile(l.path, now)
-	if err != nil {
+	if err == nil {
 		l.logger.SetOutput(f)
 	}
 }
@@ -49,5 +50,5 @@ func makeDir(path string) {
 
 func newLogFile(path string, t time.Time) (*os.File, error) {
 	var name = filepath.Join(path, t.Format("2006-01-02")+".log")
-	return os.OpenFile(name, os.O_APPEND|os.O_CREATE, 0666)
+	return os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 }
