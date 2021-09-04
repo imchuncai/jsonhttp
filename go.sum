@@ -1,3 +1,5 @@
+github.com/imchuncai/logger v0.0.0-20210904044211-28ff255e3cc7 h1:C8a93HisNtBLhqHwBl66H7KqIZuyCD516M5hnUCYa2Y=
+github.com/imchuncai/logger v0.0.0-20210904044211-28ff255e3cc7/go.mod h1:QpE3wlTgzlGzPlSK1wR1l+legkLFrAdIYSG2gFTMKcA=
 github.com/lib/pq v1.10.0 h1:Zx5DJFEYQXio93kgXnQ09fXNiUKsqv4OUEu2UtGcB1E=
 github.com/lib/pq v1.10.0/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 gopl.io v0.0.0-20200323155855-65c318dde95e h1:Z2obUjDpRealS0n+wq0nZ0tAyl+vY1txRLsZ/EY7XNM=

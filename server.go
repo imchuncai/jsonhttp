@@ -14,29 +14,31 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/imchuncai/logger"
 	"github.com/lib/pq"
 	"gopl.io/ch12/params"
 )
 
 var _maxTry int
+var _logger logger.Logger
 
 const defaultMaxMemory = 32 << 20 // 32 MB
 
 // maxTry is only use for postgres
-func Listen(address string, maxTry int, logger Logger) {
+func Listen(address string, maxTry int, l logger.Logger) {
 	if maxTry <= 0 {
 		panic(fmt.Errorf("jsonhttp: listen %s failed, maxTry must be positive", address))
 	}
 	_maxTry = maxTry
-	_logger = logger
+	_logger = l
 
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
-		logger.Log(Info, (<-c).String())
+		_logger.Log(logger.Info, (<-c).String())
 		os.Exit(5)
 	}()
-	logger.Log(Info, "jsonhttp: start listen "+address)
+	_logger.Log(logger.Info, "jsonhttp: start listen "+address)
 	Must(http.ListenAndServe(address, nil))
 }
 
@@ -153,11 +155,11 @@ func (res Response) do(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	resJSONByte, err := json.Marshal(res)
 	if err != nil {
-		Log(Error, err)
+		_logger.Log(logger.Error, err)
 	}
 	_, err = fmt.Fprint(w, string(resJSONByte))
 	if err != nil {
-		Log(Error, err)
+		_logger.Log(logger.Error, err)
 	}
 }
 
@@ -203,17 +205,17 @@ func doRecover(w http.ResponseWriter) (retry bool) {
 	case nil:
 	case *pq.Error:
 		if err.Code == "40001" || err.Code == "55P03" {
-			Log(Warn, err, string(debug.Stack()))
+			_logger.Log(logger.Warn, err, string(debug.Stack()))
 			return true
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		Log(Error, err, string(debug.Stack()))
+		_logger.Log(logger.Error, err, string(debug.Stack()))
 	case ErrorWithCode:
 		w.WriteHeader(err.HTTPResponseStatusCode)
-		Log(Warn, err, string(debug.Stack()))
+		_logger.Log(logger.Warn, err, string(debug.Stack()))
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
-		Log(Error, err, string(debug.Stack()))
+		_logger.Log(logger.Error, err, string(debug.Stack()))
 	}
 	return false
 }
@@ -302,4 +304,31 @@ func Echo(req Request) Response {
 	var reqData interface{}
 	req.Unmarshal(&reqData)
 	return Success(reqData)
+}
+
+func Must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+// ErrorWithCode is an error with http response status code
+type ErrorWithCode struct {
+	HTTPResponseStatusCode int
+	OriginError            error
+}
+
+func (e ErrorWithCode) Error() string {
+	return fmt.Sprintf("HTTPResponseStatusCode:%d OriginError:%v", e.HTTPResponseStatusCode, e.OriginError)
+}
+
+func MustWithCode(err error, httpResponseStatusCode int) {
+	if err != nil {
+		panic(ErrorWithCode{httpResponseStatusCode, err})
+	}
+}
+
+// Forbidden panic a ErrorWithCode error
+func Forbidden(err error) {
+	panic(ErrorWithCode{http.StatusForbidden, err})
 }
