@@ -14,18 +14,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/imchuncai/logger"
+	"github.com/imchuncai/log"
 	"github.com/lib/pq"
 	"gopl.io/ch12/params"
 )
 
 var _maxTry int
-var _logger logger.Logger
+var _logger log.Logger
 
 const defaultMaxMemory = 32 << 20 // 32 MB
 
 // maxTry is only use for postgres
-func Listen(address string, maxTry int, l logger.Logger) {
+func Listen(address string, maxTry int, l log.Logger) {
 	if maxTry <= 0 {
 		panic(fmt.Errorf("jsonhttp: listen %s failed, maxTry must be positive", address))
 	}
@@ -35,10 +35,10 @@ func Listen(address string, maxTry int, l logger.Logger) {
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
-		_logger.Log(logger.Info, (<-c).String())
+		_logger.Log(log.Info, (<-c).String())
 		os.Exit(5)
 	}()
-	_logger.Log(logger.Info, "jsonhttp: start listen "+address)
+	_logger.Log(log.Info, "jsonhttp: start listen "+address)
 	Must(http.ListenAndServe(address, nil))
 }
 
@@ -155,11 +155,11 @@ func (res Response) do(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	resJSONByte, err := json.Marshal(res)
 	if err != nil {
-		_logger.Log(logger.Error, err)
+		_logger.Log(log.Error, err)
 	}
 	_, err = fmt.Fprint(w, string(resJSONByte))
 	if err != nil {
-		_logger.Log(logger.Error, err)
+		_logger.Log(log.Error, err)
 	}
 }
 
@@ -205,17 +205,17 @@ func doRecover(w http.ResponseWriter) (retry bool) {
 	case nil:
 	case *pq.Error:
 		if err.Code == "40001" || err.Code == "55P03" {
-			_logger.Log(logger.Warn, err, string(debug.Stack()))
+			_logger.Log(log.Warn, err, string(debug.Stack()))
 			return true
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		_logger.Log(logger.Error, err, string(debug.Stack()))
+		_logger.Log(log.Error, err, string(debug.Stack()))
 	case ErrorWithCode:
 		w.WriteHeader(err.HTTPResponseStatusCode)
-		_logger.Log(logger.Warn, err, string(debug.Stack()))
+		_logger.Log(log.Warn, err, string(debug.Stack()))
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
-		_logger.Log(logger.Error, err, string(debug.Stack()))
+		_logger.Log(log.Error, err, string(debug.Stack()))
 	}
 	return false
 }
@@ -310,6 +310,18 @@ func Must(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func MustForInit(err error) {
+	if err == nil {
+		return
+	}
+	_logger.Log(log.Error, err, debug.Stack())
+	panic(err)
+}
+
+func Log(prefix log.Prefix, v ...interface{}) {
+	_logger.Log(prefix, v...)
 }
 
 // ErrorWithCode is an error with http response status code
