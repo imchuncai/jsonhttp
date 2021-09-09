@@ -182,7 +182,7 @@ type handler interface {
 
 func handle(h handler) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		defer doRecover(w)
+		defer func() { doRecover(recover(), w) }()
 		var req = h.getRequest(w, r)
 		for try := _maxTry; try > 0; try-- {
 			if !serve(h, req, w, r) {
@@ -194,14 +194,14 @@ func handle(h handler) func(w http.ResponseWriter, r *http.Request) {
 }
 
 func serve(h handler, req interface{}, w http.ResponseWriter, r *http.Request) (retry bool) {
-	defer func() { retry = doRecover(w) }()
+	defer func() { retry = doRecover(recover(), w) }()
 	h.serve(req, w, r)
 	return false
 }
 
 // service recover from panic
-func doRecover(w http.ResponseWriter) (retry bool) {
-	switch err := recover().(type) {
+func doRecover(recovered interface{}, w http.ResponseWriter) (retry bool) {
+	switch err := recovered.(type) {
 	case nil:
 	case *pq.Error:
 		if err.Code == "40001" || err.Code == "55P03" {
