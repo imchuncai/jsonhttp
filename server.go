@@ -312,9 +312,9 @@ func Must(err error) {
 	}
 }
 
-// func Log(prefix log.Prefix, v ...interface{}) {
-// 	_logger.Log(prefix, v...)
-// }
+func Log(prefix log.Prefix, v ...interface{}) {
+	_logger.Log(prefix, v...)
+}
 
 // ErrorWithCode is an error with http response status code
 type ErrorWithCode struct {
