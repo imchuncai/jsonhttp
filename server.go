@@ -1,9 +1,9 @@
 package jsonhttp
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
@@ -70,6 +70,7 @@ func HandleOrigin(partten string, handler http.Handler) {
 	http.Handle(partten, handler)
 }
 
+// Request, RequestForm, RequestGet all implements CommonRequestInterface.
 type CommonRequestInterface interface {
 	Req() *http.Request
 	Res() http.ResponseWriter
@@ -102,7 +103,7 @@ func getCommonRequest(w http.ResponseWriter, r *http.Request) CommonRequest {
 	return req
 }
 
-// Request http post json request struct
+// Request is http post json request structre
 type Request struct {
 	CommonRequest
 	Data      []byte
@@ -118,7 +119,7 @@ func getRequest(w http.ResponseWriter, r *http.Request) Request {
 	return Request{getCommonRequest(w, r), data, unmarshal}
 }
 
-// RequestForm http post form request struct
+// RequestForm is http post form request structre
 type RequestForm struct {
 	CommonRequest
 	Data *multipart.Form
@@ -129,7 +130,7 @@ func getRequestForm(w http.ResponseWriter, r *http.Request) RequestForm {
 	return RequestForm{getCommonRequest(w, r), r.MultipartForm}
 }
 
-// RequestGet http get request struct
+// RequestGet is http get request structre
 type RequestGet struct {
 	CommonRequest
 	RawQuery  string
@@ -143,7 +144,7 @@ func getRequestGet(w http.ResponseWriter, r *http.Request) RequestGet {
 	return RequestGet{getCommonRequest(w, r), r.URL.RawQuery, unmarshal}
 }
 
-// Response json response struct
+// Response is http json response struct
 type Response struct {
 	Success bool        `json:"success"`
 	Code    int         `json:"code"`
@@ -163,16 +164,16 @@ func (res Response) do(w http.ResponseWriter) {
 	}
 }
 
-// ResponseFile file response struct
+// ResponseFile is http file response struct
 type ResponseFile struct {
 	FileName string
-	Content  []byte
+	Content  io.ReadSeeker
 	Modtime  time.Time
 }
 
 func (res ResponseFile) do(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", "attachment; filename="+res.FileName)
-	http.ServeContent(w, r, res.FileName, res.Modtime, bytes.NewReader(res.Content))
+	http.ServeContent(w, r, res.FileName, res.Modtime, res.Content)
 }
 
 type handler interface {
