@@ -66,6 +66,10 @@ func HandleGetFile(partten string, handler func(req RequestGet) ResponseFile) {
 	http.HandleFunc(partten, handle(handleGetFileFunc(handler)))
 }
 
+func HandleGetRedirect(partten string, handler func(req RequestGet) ResponseRedirect) {
+	http.HandleFunc(partten, handle(HandleGetRedirectFunc(handler)))
+}
+
 func HandleOrigin(partten string, handler http.Handler) {
 	http.Handle(partten, handler)
 }
@@ -133,7 +137,7 @@ func getRequestForm(w http.ResponseWriter, r *http.Request) RequestForm {
 // RequestGet is http get request structre
 type RequestGet struct {
 	CommonRequest
-	RawQuery  string
+	RawQuery  string // encoded query values, without '?'
 	Unmarshal func(v interface{}) error
 }
 
@@ -174,6 +178,16 @@ type ResponseFile struct {
 func (res ResponseFile) do(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", "attachment; filename="+res.FileName)
 	http.ServeContent(w, r, res.FileName, res.Modtime, res.Content)
+}
+
+// ResponseRedirect is http redirect response struct
+type ResponseRedirect struct {
+	URL  string
+	Code int
+}
+
+func (res ResponseRedirect) do(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, res.URL, res.Code)
 }
 
 type handler interface {
@@ -278,6 +292,16 @@ func (f handleGetFileFunc) getRequest(w http.ResponseWriter, r *http.Request) in
 }
 
 func (f handleGetFileFunc) serve(req interface{}, w http.ResponseWriter, r *http.Request) {
+	f(req.(RequestGet)).do(w, r)
+}
+
+type HandleGetRedirectFunc func(req RequestGet) ResponseRedirect
+
+func (f HandleGetRedirectFunc) getRequest(w http.ResponseWriter, r *http.Request) interface{} {
+	return getRequestGet(w, r)
+}
+
+func (f HandleGetRedirectFunc) serve(req interface{}, w http.ResponseWriter, r *http.Request) {
 	f(req.(RequestGet)).do(w, r)
 }
 

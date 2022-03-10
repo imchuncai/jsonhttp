@@ -55,8 +55,8 @@ func TestHandle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer res.Body.Close()
 	data, err := io.ReadAll(res.Body)
-	res.Body.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,8 +89,8 @@ func TestHandleFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer res.Body.Close()
 	data, err := io.ReadAll(res.Body)
-	res.Body.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestHandleForm(t *testing.T) {
 			t.Fatalf(`want form file["%s"]: %s got %s`, formFileKey, want, string(data))
 		}
 
-		return Success(nil)
+		return Success(string(data))
 	})))
 	ts := httptest.NewServer(handler)
 	defer ts.Close()
@@ -172,24 +172,45 @@ func TestHandleForm(t *testing.T) {
 	request.Header.Add("Content-Type", writer.FormDataContentType())
 
 	client := &http.Client{}
-	response, err := client.Do(request)
+	res, err := client.Do(request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
+	defer res.Body.Close()
+
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := fmt.Sprintf(`{"success":true,"code":0,"data":"%s"}`, formFileValue)
+	equal, err := JsonEqual(data, []byte(want))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !equal {
+		t.Fatalf("want data: %s got %s", want, string(data))
+	}
 }
 
 func TestHandleGet(t *testing.T) {
 	SetEnvironment()
 
-	getRawQuery := "hi=hello, world!"
+	hiMessage := "hello_world"
+	getRawQuery := "hi=" + hiMessage
 	handler := http.HandlerFunc(handle(handleGetFunc(func(req RequestGet) Response {
-		want := getRawQuery
-		if req.RawQuery != want {
-			t.Fatalf(`want get raw query: %s got: %s`, want, req.RawQuery)
+		var reqData struct {
+			Hi string `http:"hi"`
+		}
+		err := req.Unmarshal(&reqData)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reqData.Hi != hiMessage {
+			t.Fatalf(`want hi: %s got: %s`, hiMessage, reqData.Hi)
 		}
 
-		return Success(nil)
+		return Success(reqData.Hi)
 	})))
 	ts := httptest.NewServer(handler)
 	defer ts.Close()
@@ -199,4 +220,45 @@ func TestHandleGet(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer res.Body.Close()
+
+	data, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := fmt.Sprintf(`{"success":true,"code":0,"data":"%s"}`, hiMessage)
+	equal, err := JsonEqual(data, []byte(want))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !equal {
+		t.Fatalf("want data: %s got %s", want, string(data))
+	}
+}
+
+func TestHandleRedirect(t *testing.T) {
+	SetEnvironment()
+
+	const redirectURL = "https://imchuncai.com"
+	const redirestCode = http.StatusTemporaryRedirect
+	handler := http.HandlerFunc(handle(HandleGetRedirectFunc(func(req RequestGet) ResponseRedirect {
+		return ResponseRedirect{redirectURL, redirestCode}
+	})))
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	client := http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	res, err := client.Get(ts.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != redirestCode {
+		t.Fatalf("want status code: %d got %d", redirestCode, res.StatusCode)
+	}
+	if res.Header.Get("Location") != redirectURL {
+		t.Fatalf("want redirect location: %s got %s", redirectURL, res.Header.Get("Location"))
+	}
 }
