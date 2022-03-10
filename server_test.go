@@ -202,10 +202,7 @@ func TestHandleGet(t *testing.T) {
 		var reqData struct {
 			Hi string `http:"hi"`
 		}
-		err := req.Unmarshal(&reqData)
-		if err != nil {
-			t.Fatal(err)
-		}
+		req.Unmarshal(&reqData)
 		if reqData.Hi != hiMessage {
 			t.Fatalf(`want hi: %s got: %s`, hiMessage, reqData.Hi)
 		}

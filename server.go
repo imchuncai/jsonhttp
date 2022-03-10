@@ -138,12 +138,12 @@ func getRequestForm(w http.ResponseWriter, r *http.Request) RequestForm {
 type RequestGet struct {
 	CommonRequest
 	RawQuery  string // encoded query values, without '?'
-	Unmarshal func(v interface{}) error
+	Unmarshal func(v interface{})
 }
 
 func getRequestGet(w http.ResponseWriter, r *http.Request) RequestGet {
-	var unmarshal = func(v interface{}) error {
-		return params.Unpack(r, v)
+	var unmarshal = func(v interface{}) {
+		MustWithCode(params.Unpack(r, v), http.StatusBadRequest)
 	}
 	return RequestGet{getCommonRequest(w, r), r.URL.RawQuery, unmarshal}
 }
